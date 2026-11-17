@@ -1,0 +1,126 @@
+{
+  "description": "M5 对账样例：同一档号跨来源出现，且存在馆方确认的一对多/多对一候选。档号按原字保留（含前导零与全半角）。",
+  "left": [
+    {
+      "source": "馆藏目录",
+      "archive_id": "000123",
+      "source_line": 2
+    },
+    {
+      "source": "馆藏目录",
+      "archive_id": "000124",
+      "source_line": 3
+    },
+    {
+      "source": "馆藏目录",
+      "archive_id": "000404",
+      "source_line": 4
+    },
+    {
+      "source": "馆藏目录",
+      "archive_id": "000405",
+      "source_line": 5
+    },
+    {
+      "source": "馆藏目录",
+      "archive_id": "9007199254740993",
+      "source_line": 6
+    },
+    {
+      "source": "馆藏目录",
+      "archive_id": "全001",
+      "source_line": 7
+    },
+    {
+      "source": "专题索引",
+      "archive_id": "000123",
+      "source_line": 2
+    },
+    {
+      "source": "专题索引",
+      "archive_id": "000404",
+      "source_line": 3
+    }
+  ],
+  "right": [
+    {
+      "source": "馆藏目录",
+      "archive_id": "000123",
+      "source_line": 2
+    },
+    {
+      "source": "馆藏目录",
+      "archive_id": "A-0124",
+      "source_line": 3
+    },
+    {
+      "source": "馆藏目录",
+      "archive_id": "000777",
+      "source_line": 4
+    },
+    {
+      "source": "馆藏目录",
+      "archive_id": "A-0125",
+      "source_line": 5
+    },
+    {
+      "source": "馆藏目录",
+      "archive_id": "9007199254740993",
+      "source_line": 6
+    },
+    {
+      "source": "馆藏目录",
+      "archive_id": "全００１",
+      "source_line": 7
+    },
+    {
+      "source": "专题索引",
+      "archive_id": "000123",
+      "source_line": 2
+    },
+    {
+      "source": "专题索引",
+      "archive_id": "000404",
+      "source_line": 3
+    }
+  ],
+  "quarantine": 1,
+  "empty": 0,
+  "suggested_claims": [
+    {
+      "alias_id": "alias-0124-a",
+      "source": "馆藏目录",
+      "old_id": "000124",
+      "new_id": "A-0124",
+      "basis": "馆方 2026-11-10 确认函第 3 条：卷内目录改号，旧号 000124 沿用为 A-0124"
+    },
+    {
+      "alias_id": "alias-0124-b",
+      "source": "馆藏目录",
+      "old_id": "000124",
+      "new_id": "A-0125",
+      "basis": "馆方 2026-11-10 确认函第 4 条：同批迁移存在疑义，待与 A-0124 裁决"
+    },
+    {
+      "alias_id": "alias-full",
+      "source": "馆藏目录",
+      "old_id": "全001",
+      "new_id": "全００１",
+      "basis": "馆方 2026-11-11 确认函：全角录入属原值，认领为同一实体，原值不改写"
+    },
+    {
+      "alias_id": "alias-many-a",
+      "source": "馆藏目录",
+      "old_id": "000404",
+      "new_id": "000777",
+      "basis": "馆方 2026-11-12 确认函第 1 条：旧号 000404 可能并入 000777，未定"
+    },
+    {
+      "alias_id": "alias-many-b",
+      "source": "馆藏目录",
+      "old_id": "000405",
+      "new_id": "000777",
+      "basis": "馆方 2026-11-12 确认函第 2 条：旧号 000405 可能并入 000777，与 000404 待裁决"
+    }
+  ]
+}

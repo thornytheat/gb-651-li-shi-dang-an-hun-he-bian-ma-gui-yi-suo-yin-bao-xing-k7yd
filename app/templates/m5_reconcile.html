@@ -1,4 +1,133 @@
 {% extends "base.html" %}{% block content %}
-<div class="grid module-5"><section class="panel panel--primary"><div class="panel__head"><h2>索引对账记录</h2><span class="panel__meta">M5 · {{ data.status|default('READY') }}</span></div><div class="panel__body panel__body--scroll"><table class="ledger"><thead><tr><th>字段</th><th>值</th><th>证据</th></tr></thead><tbody>{% for key, value in data.items() %}<tr><td>{{ key }}</td><td class="num">{{ value }}</td><td>R{{ loop.index }}</td></tr>{% endfor %}</tbody></table></div></section>
-<div class="stack"><section class="panel"><div class="panel__head"><h2>原因码</h2><span class="panel__meta">{{ data.reason|default('OK') }}</span></div><div class="panel__body bars"><i style="--v:65%"></i><i style="--v:50%"></i></div></section><section class="panel"><div class="panel__head"><h2>本次动作</h2><span class="panel__meta">/api/reconcile</span></div><div class="panel__body"><button class="btn btn--primary" data-endpoint="/api/reconcile">运行 索引对账</button><pre class="result">等待运行</pre></div></section></div></div>
+<div class="grid module-5">
+<section class="panel panel--primary">
+  <div class="panel__head"><h2>索引对账 · 按来源</h2><span class="panel__meta">M5 · {{ data.reason }}</span></div>
+  <div class="panel__body panel__body--scroll">
+    <table class="ledger" id="source-table">
+      <thead><tr><th>来源</th><th>索引</th><th>确认</th><th>匹配</th><th>缺失</th><th>孤立</th></tr></thead>
+      <tbody>
+      {% for row in data.sources %}
+        <tr>
+          <td>{{ row.source or '（未标注来源）' }}</td>
+          <td class="num">{{ row.left_count }}</td>
+          <td class="num">{{ row.right_count }}</td>
+          <td class="num">{{ row.matched_count }}</td>
+          <td class="num" title="{{ row.missing|join('、') }}">{{ row.missing_count }}</td>
+          <td class="num" title="{{ row.orphan|join('、') }}">{{ row.orphan_count }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    <div class="panel__body">
+      <p class="meta">输入 {{ data.input_count }} = 有效 {{ data.valid_count }} + 隔离 {{ data.quarantine_count }} + 空 {{ data.empty_count }}；两侧守恒 {{ '通过' if data.balanced else '不通过' }}。</p>
+      <h3>差异原值</h3>
+      <table class="ledger"><thead><tr><th>侧</th><th>来源</th><th>档号原值</th><th>原行号</th></tr></thead><tbody>
+      {% for ref in data.missing_refs %}<tr><td>缺失</td><td>{{ ref.source or '—' }}</td><td class="num">{{ ref.archive_id }}</td><td class="num">{{ ref.source_line if ref.source_line is not none else '—' }}</td></tr>{% endfor %}
+      {% for ref in data.orphan_refs %}<tr><td>孤立</td><td>{{ ref.source or '—' }}</td><td class="num">{{ ref.archive_id }}</td><td class="num">{{ ref.source_line if ref.source_line is not none else '—' }}</td></tr>{% endfor %}
+      </tbody></table>
+    </div>
+  </div>
+</section>
+
+<div class="stack">
+<section class="panel">
+  <div class="panel__head"><h2>别名认领</h2><span class="panel__meta">{{ data.ledger.aliases|length }} 条</span></div>
+  <div class="panel__body panel__body--scroll">
+    {% if data.ambiguous_groups %}
+    <div class="notice" data-ambiguity>
+      <b>待裁决 {{ data.ambiguous_groups|length }} 组</b>（多对一/一对多不自动合并）
+      {% for group in data.ambiguous_groups %}
+      <div class="notice__row">[{{ group.reason }}] {{ group.source }}：{{ group.old_ids|join('、') }} → {{ group.new_ids|join('、') }}</div>
+      {% endfor %}
+    </div>
+    {% endif %}
+    <table class="ledger" id="alias-table">
+      <thead><tr><th>来源</th><th>旧档号</th><th>新档号</th><th>状态</th><th>版本</th><th>动作</th></tr></thead>
+      <tbody>
+      {% for alias in data.ledger.aliases %}
+        <tr data-alias="{{ alias.alias_id }}">
+          <td>{{ alias.source }}</td>
+          <td class="num">{{ alias.old_id }}</td>
+          <td class="num">{{ alias.new_id }}</td>
+          <td>{{ alias.status }}</td>
+          <td class="num">{{ alias.version }}</td>
+          <td>
+            {% if alias.status == 'pending' %}
+            <button class="btn btn--primary" data-action="claim" data-alias-id="{{ alias.alias_id }}" data-source="{{ alias.source }}" data-old="{{ alias.old_id }}" data-new="{{ alias.new_id }}" data-version="{{ alias.version }}">认领</button>
+            <button class="btn" data-action="undo" data-alias-id="{{ alias.alias_id }}" data-version="{{ alias.version }}" title="排除该候选，保留其余待裁决">排除</button>
+            {% elif alias.status == 'active' %}
+            <button class="btn" data-action="undo" data-alias-id="{{ alias.alias_id }}" data-version="{{ alias.version }}">撤销</button>
+            <button class="btn" data-action="split" data-alias-id="{{ alias.alias_id }}" data-version="{{ alias.version }}" data-old="{{ alias.old_id }}" data-new="{{ alias.new_id }}" data-source="{{ alias.source }}">拆分</button>
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel__head"><h2>本次动作</h2><span class="panel__meta">/api/reconcile/*</span></div>
+  <div class="panel__body">
+    <div class="form-row"><input id="claim-source" placeholder="来源"><input id="claim-old" placeholder="旧档号（原字）"><input id="claim-new" placeholder="新档号（原字）"><input id="claim-basis" placeholder="确认依据"></div>
+    <button class="btn btn--primary" id="claim-new-btn">新增认领</button>
+    <button class="btn" id="reload-ledger">刷新台账</button>
+    <pre class="result" id="result">等待操作</pre>
+    <h3>冲突登记</h3>
+    <table class="ledger"><thead><tr><th>原因</th><th>别名</th><th>提交版本</th><th>当前版本</th></tr></thead><tbody>
+    {% for item in data.ledger.conflicts %}<tr><td>{{ item.reason }}</td><td>{{ item.alias_id }}</td><td class="num">{{ item.expected_version if item.expected_version is not none else '—' }}</td><td class="num">{{ item.actual_version }}</td></tr>{% endfor %}
+    </tbody></table>
+    <h3>决定日志</h3>
+    <table class="ledger"><thead><tr><th>状态</th><th>类型</th><th>别名</th></tr></thead><tbody>
+    {% for item in data.ledger.operations %}<tr><td>{{ item.state }}</td><td>{{ item.kind }}</td><td>{{ item.alias_id }}</td></tr>{% endfor %}
+    </tbody></table>
+  </div>
+</section>
+</div></div>
+
+<script>
+const out = document.querySelector('#result');
+const post = async (url, body) => {
+  out.textContent = '提交中…';
+  const payload = Object.assign({dataset: datasetOf()}, body);
+  const res = await fetch(url, {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify(payload)});
+  const text = await res.text();
+  out.textContent = text;
+  if (res.ok) setTimeout(() => location.reload(), 350);
+};
+const datasetOf = () => {
+  const node = document.querySelector('[data-dataset]');
+  return node ? JSON.parse(node.textContent) : {};
+};
+const newDecisionKey = (kind, aliasId) => kind + ':' + aliasId + ':' + Date.now() + ':' + Math.random().toString(36).slice(2, 8);
+document.querySelectorAll('[data-action]').forEach((btn) => btn.addEventListener('click', () => {
+  const action = btn.dataset.action;
+  const aliasId = btn.dataset.aliasId;
+  const version = Number(btn.dataset.version);
+  if (action === 'claim') {
+    const basis = prompt('记录馆方确认依据（必填）', '馆方确认函：旧号沿用为新号');
+    if (!basis) return;
+    post('/api/reconcile/claim', {alias_id: aliasId, source: btn.dataset.source, old_id: btn.dataset.old, new_id: btn.dataset.new, basis, expected_version: version, decision_key: newDecisionKey('claim', aliasId)});
+  } else if (action === 'undo') {
+    const basis = prompt('撤销依据（可选）', '复核发现误认');
+    post('/api/reconcile/claims/' + aliasId + '/undo', {basis: basis || '', expected_version: version, decision_key: newDecisionKey('undo', aliasId)});
+  } else if (action === 'split') {
+    const newId = prompt('拆分出的第二部分新档号（原字）');
+    if (!newId) return;
+    const secondOld = prompt('拆分出的第二部分旧档号（原字，可留空表示仅一条）') || btn.dataset.old;
+    const basis = prompt('拆分依据', '馆方确认：原认领实为两条记录');
+    post('/api/reconcile/claims/' + aliasId + '/split', {basis: basis || '', expected_version: version, decision_key: newDecisionKey('split', aliasId), parts: [{old_id: btn.dataset.old, new_id: btn.dataset.new, basis}, {old_id: secondOld, new_id: newId, basis}]});
+  }
+}));
+document.querySelector('#claim-new-btn').addEventListener('click', () => {
+  const source = document.querySelector('#claim-source').value;
+  const oldId = document.querySelector('#claim-old').value;
+  const newId = document.querySelector('#claim-new').value;
+  const basis = document.querySelector('#claim-basis').value;
+  post('/api/reconcile/claim', {source, old_id: oldId, new_id: newId, basis, decision_key: newDecisionKey('claim', source + ':' + oldId)});
+});
+document.querySelector('#reload-ledger').addEventListener('click', () => location.reload());
+</script>
+<pre data-dataset hidden>{{ data.dataset | tojson }}</pre>
 {% endblock %}
